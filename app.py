@@ -1,6 +1,8 @@
 import streamlit as st
 from src import data_processing, model, explainability, nlp_analysis, strategy_simulator, database
 import os
+import pandas as pd
+import matplotlib.pyplot as plt
 
 # File paths (update paths as needed)
 RAW_DATA_PATH = 'data/raw/player_data_enhanced.csv'
@@ -32,10 +34,27 @@ def main():
         if os.path.exists(PROCESSED_DATA_PATH):
             df = data_processing.load_raw_data(PROCESSED_DATA_PATH)
             if st.button("Train Model"):
-                model_, X_test = model.train_and_evaluate(df, use_grid_search=False, model_path=MODEL_PATH)
+                with st.spinner("Training Random Forest..."):
+                    model_, X_test, y_test, y_pred, report, cm = model.train_and_evaluate(
+                        df, use_grid_search=False, model_path=MODEL_PATH
+                    )
                 st.success("Model trained and saved.")
-                st.write("Test data sample:")
-                st.write(X_test.head())
+
+                st.subheader("Classification Report")
+                st.dataframe(pd.DataFrame(report).transpose())
+
+                st.subheader("Confusion Matrix")
+                fig, ax = plt.subplots(figsize=(5, 4))
+                from sklearn.metrics import ConfusionMatrixDisplay
+                ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["Not Churn", "Churn"]).plot(ax=ax)
+                st.pyplot(fig)
+
+                st.subheader("Feature Importance")
+                importance_df = pd.DataFrame({
+                    "feature": X_test.columns,
+                    "importance": model_.feature_importances_
+                }).sort_values("importance", ascending=False).head(10)
+                st.bar_chart(importance_df.set_index("feature"))
         else:
             st.warning("Processed data not found. Please process data first.")
 

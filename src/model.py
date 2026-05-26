@@ -46,17 +46,13 @@ def train_random_forest(X_train, y_train, use_grid_search=False):
 
 def evaluate_model(model, X_test, y_test):
     """
-    Evaluate model on test data and print classification report & confusion matrix.
-    Args:
-        model: Trained model.
-        X_test (pd.DataFrame): Test features.
-        y_test (pd.Series): True labels.
+    Evaluate model on test data, return metrics for display.
+    Returns: (y_pred, report_dict, cm)
     """
     y_pred = model.predict(X_test)
-    print("Classification Report:")
-    print(classification_report(y_test, y_pred))
-    print("Confusion Matrix:")
-    print(confusion_matrix(y_test, y_pred))
+    report_dict = classification_report(y_test, y_pred, output_dict=True)
+    cm = confusion_matrix(y_test, y_pred)
+    return y_pred, report_dict, cm
 
 def save_model(model, filepath: str):
     """
@@ -89,6 +85,6 @@ def train_and_evaluate(df: pd.DataFrame, use_grid_search=False, model_path='mode
     """
     X_train, X_test, y_train, y_test = split_data(df)
     model = train_random_forest(X_train, y_train, use_grid_search)
-    evaluate_model(model, X_test, y_test)
+    y_pred, report_dict, cm = evaluate_model(model, X_test, y_test)
     save_model(model, model_path)
-    return model, X_test
+    return model, X_test, y_test, y_pred, report_dict, cm
