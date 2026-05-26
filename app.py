@@ -1,5 +1,5 @@
 import streamlit as st
-from src import data_processing, model, explainability, nlp_analysis, strategy_simulator, database
+from src import data_processing, model, explainability, nlp_analysis, strategy_simulator, database, anomaly_monitor
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -14,7 +14,7 @@ def main():
     st.title("🎮 Player Retention Analysis Major Project")
 
     menu = ["Data Processing & EDA", "Model Training & Evaluation", "Explainability (SHAP)",
-            "NLP Review Analysis", "Retention Strategy Simulator", "SQL Data Query"]
+            "NLP Review Analysis", "Retention Strategy Simulator", "DAU Anomaly Monitor", "SQL Data Query"]
     choice = st.sidebar.selectbox("Choose a Module", menu)
 
     if choice == "Data Processing & EDA":
@@ -77,6 +77,78 @@ def main():
 
     elif choice == "Retention Strategy Simulator":
         strategy_simulator.run_simulator()
+
+    elif choice == "DAU Anomaly Monitor":
+        st.header("DAU Anomaly Monitor")
+        st.caption("Simulated 30-day DAU time series with Z-score anomaly detection.")
+
+        anomaly_dates = st.multiselect(
+            "Inject artificial anomalies (day index → DAU multiplier)",
+            options=[(i, f"Day {i}: x0.4 (sharp drop)") for i in range(5, 30, 7)]
+            + [(i, f"Day {i}: x0.6 (moderate drop)") for i in range(8, 28, 5)],
+            default=[],
+        )
+        anomaly_map = {}
+        for entry in anomaly_dates:
+            day_idx = int(entry[0])
+            anomaly_map[day_idx] = 0.4
+
+        if st.button("Generate DAU Data & Detect Anomalies"):
+            if os.path.exists(PROCESSED_DATA_PATH):
+                df_players = data_processing.load_raw_data(PROCESSED_DATA_PATH)
+            else:
+                df_players = None
+
+            with st.spinner("Simulating DAU and running anomaly detection..."):
+                dau_df = anomaly_monitor.simulate_dau_series(df_players, days=30, anomaly_dates=anomaly_map)
+
+            st.subheader("DAU Trend (Z-Score Method)")
+            import plotly.express as px
+            fig = px.line(dau_df, x="date", y="dau", title="Daily Active Users (30 days)")
+            anomaly_points = dau_df[dau_df["is_anomaly"]]
+            if not anomaly_points.empty:
+                fig.add_scatter(
+                    x=anomaly_points["date"],
+                    y=anomaly_points["dau"],
+                    mode="markers",
+                    marker=dict(color="red", size=12, symbol="x"),
+                    name="Anomaly",
+                )
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.subheader("Z-Score Chart")
+            fig2 = px.bar(
+                dau_df,
+                x="date",
+                y="z_score",
+                color="severity",
+                color_discrete_map={"normal": "gray", "warning": "orange", "critical": "red"},
+                title="Z-Score per Day (|Z|>2 = warning, |Z|>3 = critical)",
+            )
+            fig2.add_hline(y=2, line_dash="dash", line_color="orange", annotation_text="warning +2")
+            fig2.add_hline(y=-2, line_dash="dash", line_color="orange")
+            fig2.add_hline(y=3, line_dash="dash", line_color="red", annotation_text="critical +3")
+            fig2.add_hline(y=-3, line_dash="dash", line_color="red")
+            st.plotly_chart(fig2, use_container_width=True)
+
+            st.subheader("Detected Anomalies")
+            summary = anomaly_monitor.get_anomaly_summary(dau_df)
+            if summary.empty:
+                st.success("No anomalies detected in the current data.")
+            else:
+                st.dataframe(summary, use_container_width=True)
+
+                st.subheader("Interpretation Guide")
+                st.markdown("""
+                | Z-Score 范围 | 严重度 | 含义 |
+                |---|---|---|
+                | \\|Z\\| < 2 | Normal | 正常波动范围 |
+                | 2 \\u2264 \\|Z\\| < 3 | Warning | 值得关注，可能是系统性问题前兆 |
+                | \\|Z\\| \\u2265 3 | Critical | 严重异常，需立即排查 |
+                """)
+
+            st.subheader("Raw Data")
+            st.dataframe(dau_df, use_container_width=True)
 
     elif choice == "SQL Data Query":
         st.header("SQL Data Query")
