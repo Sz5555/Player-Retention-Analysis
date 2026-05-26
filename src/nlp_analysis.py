@@ -10,6 +10,7 @@ from sklearn.decomposition import LatentDirichletAllocation
 from textblob import TextBlob
 
 nltk.download('stopwords')
+nltk.download('punkt_tab')
 
 def load_reviews(filepath: str) -> pd.DataFrame:
     """
